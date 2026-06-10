@@ -16,6 +16,7 @@ jobs:
         uses: cloudbees-io/trufflehog-secret-scan-code@v1
         with:
           image-tag: v3
+          branch: main
 
   sast-scan:
     needs:
@@ -57,7 +58,7 @@ jobs:
         with:
           name: acquisition-crm
           version: 1.4.${{ cloudbees.run_number }}
-          url: https://github.com/cloudbees-days/stryker-acquisition-crm
+          url: https://github.com/shozab-unify-examples/stryker-acquisition-crm
       - name: Publish build evidence
         uses: cloudbees-io/publish-evidence-item@v1
         with:
@@ -85,7 +86,7 @@ jobs:
           name: acquisition-crm
           version: 1.4.${{ cloudbees.run_number }}
           environment-name: acquisition-crm-dev
-          url: https://github.com/cloudbees-days/stryker-acquisition-crm
+          url: https://github.com/shozab-unify-examples/stryker-acquisition-crm
 
   deploy-prod:
     needs:
@@ -102,4 +103,4 @@ jobs:
           name: acquisition-crm
           version: 1.4.${{ cloudbees.run_number }}
           environment-name: acquisition-crm-prod
-          url: https://github.com/cloudbees-days/stryker-acquisition-crm
+          url: https://github.com/shozab-unify-examples/stryker-acquisition-crm

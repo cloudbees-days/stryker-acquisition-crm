@@ -1,0 +1,105 @@
+apiVersion: automation.cloudbees.io/v1alpha1
+kind: workflow
+name: Acquisition CRM CI
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  secrets-scan:
+    steps:
+      - name: Checkout
+        uses: cloudbees-io/checkout@v1
+      - name: Secrets Detection
+        uses: cloudbees-io/trufflehog-secret-scan-code@v1
+        with:
+          image-tag: v3
+
+  sast-scan:
+    needs:
+      - secrets-scan
+    steps:
+      - name: Checkout
+        uses: cloudbees-io/checkout@v1
+      - name: SAST Scan
+        uses: cloudbees-io/sonarqube-bundled-sast-scan-code@v2
+        with:
+          language: javascript
+
+  sca-scan:
+    needs:
+      - secrets-scan
+    steps:
+      - name: Checkout
+        uses: cloudbees-io/checkout@v1
+      - name: SCA — Dependency Vulnerability Scan
+        uses: cloudbees-io/snyk-sca-scan-dependency@v1
+        with:
+          snyk-token: ${{ secrets.SNYK_TOKEN }}
+          language: javascript
+
+  build:
+    needs:
+      - sast-scan
+      - sca-scan
+    steps:
+      - name: Checkout
+        uses: cloudbees-io/checkout@v1
+      - name: Build CRM service
+        uses: docker://node:20-alpine
+        run: |
+          npm ci --prefer-offline || npm install
+          echo "Build complete — acquisition-crm v1.4.${{ cloudbees.run_number }}"
+      - name: Register build artifact
+        uses: cloudbees-io/register-build-artifact@v2
+        with:
+          name: acquisition-crm
+          version: 1.4.${{ cloudbees.run_number }}
+          url: https://github.com/cloudbees-days/stryker-acquisition-crm
+      - name: Publish build evidence
+        uses: cloudbees-io/publish-evidence-item@v1
+        with:
+          content: |
+            ## Acquisition CRM Build
+            - **Version**: 1.4.${{ cloudbees.run_number }}
+            - **Classification**: MEDIUM | acquisition | unknown-coverage | first-60-days | non-osep
+            - **Secrets Governance**: OPEN FINDING — no secrets scanning configured pre-acquisition
+            - **Owner**: CCI Operations
+          format: MARKDOWN
+
+  deploy-dev:
+    needs:
+      - build
+    environment: acquisition-crm-dev
+    steps:
+      - name: Deploy to Dev
+        uses: docker://alpine:3.19
+        run: |
+          echo "Deploying acquisition-crm v1.4.${{ cloudbees.run_number }} to DEV"
+          echo "Platform: acquired (non-OSEP) | First-60-days assessment: INCOMPLETE"
+      - name: Register deployed artifact
+        uses: cloudbees-io/register-deployed-artifact@v2
+        with:
+          name: acquisition-crm
+          version: 1.4.${{ cloudbees.run_number }}
+          environment-name: acquisition-crm-dev
+          url: https://github.com/cloudbees-days/stryker-acquisition-crm
+
+  deploy-prod:
+    needs:
+      - deploy-dev
+    environment: acquisition-crm-prod
+    steps:
+      - name: Deploy to Production
+        uses: docker://alpine:3.19
+        run: |
+          echo "Deploying acquisition-crm v1.4.${{ cloudbees.run_number }} to PRODUCTION"
+      - name: Register deployed artifact
+        uses: cloudbees-io/register-deployed-artifact@v2
+        with:
+          name: acquisition-crm
+          version: 1.4.${{ cloudbees.run_number }}
+          environment-name: acquisition-crm-prod
+          url: https://github.com/cloudbees-days/stryker-acquisition-crm
